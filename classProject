@@ -1,0 +1,70 @@
+# from a directory that contains muscle3.8.31_i86linux64, hmmbuild, hmmsearch
+# and directories ref_sequences and proteomes:
+# to align all the files of each gene
+# for the mcrA gene:
+# first put all of the mcrA sequences into one file
+# so that they can be aligned at once
+
+for file in ./ref_sequences/m*.fasta
+do
+cat $file >> mcrAgene.ref
+done
+
+# now that they are into one file, we can align them
+
+./muscle -in mcrAgene.ref -out mcrAgene.mus
+
+# repeat for hsp70 gene
+
+for file in ./ref_sequences/h*.fasta
+do
+cat $file >> hsp70gene.ref
+done
+
+./muscle -in hsp70gene.ref -out hsp70gene.mus
+
+# now we want to build a HMM for each gene
+
+# for the mcrA gene:
+
+./hmmbuild mcrAgene.hmm mcrAgene.mus
+
+# and for hsp70 gene:
+
+./hmmbuild hsp70gene.hmm hsp70gene.mus
+
+# cool, now we have our HMM for each gene
+# now we want to use hmmsearch to search proteomes for genes of interest
+# first we'll do the mcrA gene
+
+for file in ./proteomes/*.fasta
+do
+./hmmsearch --tblout $file.mcrAgene.tbl mcrAgene.hmm $file
+done
+
+# and now the hsp70 gene
+
+for file in ./proteomes/*.fasta
+do
+./hmmsearch --tblout $file.hsp70gene.tbl hsp70gene.hmm $file
+done
+
+# make the summary table of all hits for both genes
+
+echo "ProteomeID mcrAgene hsp70gene" > genes.tbl 
+
+for file in ./proteomes/*.fasta
+do
+var1=$(echo $file | sed -E 's/[^0-9]//g')
+var2=$(cat $file.mcrAgene.tbl | grep "WP" | uniq | wc -l)
+var3=$(cat $file.hsp70gene.tbl | grep "WP" | uniq | wc -l)
+echo $var1 $var2 $var3 >> genes.tbl
+done
+
+# make a txt file of the best candidates, removing proteomes with 0 hits for either gene
+
+echo "The suggested candidates for pH-resistant methanogens are: " > candidates.txt
+echo "ProteomeID mcrAgene hsp70gene" >> candidates.txt
+cat genes.tbl | grep -v ProteomeID | grep -v "0$" | grep -v "\s0" | sort --field-separator=' ' -k3 -n -r >> candidates.txt
+
+
